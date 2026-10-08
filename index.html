@@ -2,21 +2,24 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Realistic Endless Car Game</title>
+<title>Endless Car Racing</title>
 
 <style>
 *{box-sizing:border-box}
+
 body{
     margin:0;
     overflow:hidden;
-    background:#111;
+    background:#000;
     font-family:Arial,sans-serif;
 }
+
 canvas{
     display:block;
     width:100vw;
     height:100vh;
 }
+
 #score{
     position:fixed;
     top:15px;
@@ -27,56 +30,50 @@ canvas{
     text-shadow:2px 2px 5px #000;
     z-index:5;
 }
-#speed{
-    position:fixed;
-    top:48px;
-    left:15px;
-    color:white;
-    font-size:16px;
-    text-shadow:2px 2px 4px #000;
-    z-index:5;
-}
+
 #gameover{
     display:none;
     position:fixed;
     inset:0;
-    background:rgba(0,0,0,.7);
+    background:rgba(0,0,0,.75);
     color:white;
     align-items:center;
     justify-content:center;
     flex-direction:column;
-    z-index:10;
+    z-index:20;
 }
+
 #gameover h1{
-    font-size:48px;
+    font-size:50px;
     margin:10px;
 }
+
 #gameover button{
     padding:14px 30px;
     font-size:20px;
     border:0;
     border-radius:10px;
-    cursor:pointer;
 }
+
 .controls{
     position:fixed;
     bottom:25px;
+    left:0;
     width:100%;
     display:flex;
     justify-content:space-between;
     padding:0 25px;
-    z-index:8;
-    pointer-events:none;
+    z-index:10;
 }
+
 .controls button{
-    pointer-events:auto;
     width:75px;
     height:75px;
     border-radius:50%;
     border:2px solid white;
-    background:rgba(0,0,0,.45);
+    background:rgba(0,0,0,.5);
     color:white;
-    font-size:35px;
+    font-size:32px;
 }
 </style>
 </head>
@@ -86,7 +83,6 @@ canvas{
 <canvas id="game"></canvas>
 
 <div id="score">Score: 0</div>
-<div id="speed">Speed: 1</div>
 
 <div id="gameover">
     <h1>GAME OVER</h1>
@@ -95,8 +91,8 @@ canvas{
 </div>
 
 <div class="controls">
-    <button id="left">◀</button>
-    <button id="right">▶</button>
+    <button onclick="left()">◀</button>
+    <button onclick="right()">▶</button>
 </div>
 
 <script>
@@ -110,178 +106,257 @@ function resize(){
     W=canvas.width=innerWidth;
     H=canvas.height=innerHeight;
 }
+
 resize();
-addEventListener("resize",resize);
+window.addEventListener("resize",resize);
 
-let player={
-    lane:1,
-    x:0
-};
-
+let playerLane=0;
 let enemies=[];
 let score=0;
-let speed=7;
-let roadMove=0;
-let gameRunning=true;
+let gameSpeed=0.006;
+let running=true;
 
-const lanes=[-1,0,1];
 
-function roadWidth(y){
-    let horizon=H*.36;
-    let t=(y-horizon)/(H-horizon);
-    return 150 + t*W*.85;
+/* ---------------- ROAD ---------------- */
+
+function roadWidth(p){
+    return 120 + p*p*W*0.9;
 }
 
-function roadCenter(){
-    return W/2;
+function roadX(p,lane){
+
+    let center=W/2;
+
+    let width=roadWidth(p);
+
+    return center + lane*width*0.30;
 }
 
-function laneX(lane,y){
-    let rw=roadWidth(y);
-    return roadCenter()+lane*(rw/3);
-}
 
-function drawSky(){
+/* ---------------- BACKGROUND ---------------- */
 
-    let sky=ctx.createLinearGradient(0,0,0,H*.45);
-    sky.addColorStop(0,"#4da6ff");
-    sky.addColorStop(1,"#dff4ff");
+function background(){
+
+    // sky
+    let sky=ctx.createLinearGradient(0,0,0,H*.55);
+
+    sky.addColorStop(0,"#55aaff");
+    sky.addColorStop(1,"#d9f3ff");
 
     ctx.fillStyle=sky;
     ctx.fillRect(0,0,W,H);
 
     // sun
     ctx.beginPath();
-    ctx.arc(W*.82,H*.12,45,0,Math.PI*2);
-    ctx.fillStyle="rgba(255,245,180,.9)";
+    ctx.arc(W*.8,H*.13,45,0,Math.PI*2);
+    ctx.fillStyle="#fff1a8";
     ctx.fill();
 
     // mountains
-    ctx.fillStyle="#607d8b";
+    ctx.fillStyle="#71828d";
+
     ctx.beginPath();
-    ctx.moveTo(0,H*.36);
-    ctx.lineTo(W*.15,H*.20);
-    ctx.lineTo(W*.28,H*.36);
-    ctx.lineTo(W*.45,H*.18);
-    ctx.lineTo(W*.65,H*.36);
-    ctx.lineTo(W*.82,H*.22);
-    ctx.lineTo(W,H*.36);
+
+    ctx.moveTo(0,H*.40);
+    ctx.lineTo(W*.15,H*.22);
+    ctx.lineTo(W*.30,H*.40);
+
+    ctx.lineTo(W*.48,H*.18);
+    ctx.lineTo(W*.68,H*.40);
+
+    ctx.lineTo(W*.84,H*.23);
+    ctx.lineTo(W,H*.40);
+
     ctx.closePath();
+
     ctx.fill();
 
-    // ground
-    ctx.fillStyle="#4b8b3b";
-    ctx.fillRect(0,H*.36,W,H*.64);
+    // grass
+    ctx.fillStyle="#4d963b";
+    ctx.fillRect(0,H*.40,W,H*.60);
 }
 
-function drawRoad(){
 
-    let horizon=H*.36;
+/* ---------------- ROAD ---------------- */
+
+function road(){
+
+    let horizon=H*.40;
 
     // road
     ctx.beginPath();
-    ctx.moveTo(W*.46,horizon);
-    ctx.lineTo(W*.54,horizon);
-    ctx.lineTo(W*.98,H);
-    ctx.lineTo(W*.02,H);
+
+    ctx.moveTo(W*.48,horizon);
+    ctx.lineTo(W*.52,horizon);
+
+    ctx.lineTo(W,H);
+    ctx.lineTo(0,H);
+
     ctx.closePath();
 
-    let roadGrad=ctx.createLinearGradient(0,horizon,0,H);
-    roadGrad.addColorStop(0,"#555");
-    roadGrad.addColorStop(1,"#191919");
+    let g=ctx.createLinearGradient(0,horizon,0,H);
 
-    ctx.fillStyle=roadGrad;
+    g.addColorStop(0,"#555");
+    g.addColorStop(1,"#161616");
+
+    ctx.fillStyle=g;
     ctx.fill();
 
+
     // road edges
+
     ctx.strokeStyle="#fff";
     ctx.lineWidth=5;
 
     ctx.beginPath();
-    ctx.moveTo(W*.46,horizon);
-    ctx.lineTo(W*.02,H);
+    ctx.moveTo(W*.48,horizon);
+    ctx.lineTo(0,H);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(W*.54,horizon);
-    ctx.lineTo(W*.98,H);
+    ctx.moveTo(W*.52,horizon);
+    ctx.lineTo(W,H);
     ctx.stroke();
 
-    // lane markings
-    for(let i=0;i<18;i++){
 
-        let p=((i/18)+(roadMove%1)/18)%1;
+    // lane lines
 
-        let y=horizon+p*(H-horizon);
-        let rw=roadWidth(y);
+    for(let i=0;i<14;i++){
 
-        let lineH=10+p*55;
-        let gap=25+p*60;
+        let p=((i/14 + roadMove)%1);
+
+        let y=horizon + p*(H-horizon);
+
+        let width=roadWidth(p);
+
+        let lineSize=5+p*35;
 
         ctx.fillStyle="#fff";
 
-        for(let lane=-0.5;lane<=0.5;lane+=1){
+        let x1=W/2-width*.15;
 
-            let x=W/2+lane*rw/3;
+        let x2=W/2+width*.15;
 
-            ctx.fillRect(
-                x-3,
-                y,
-                6,
-                lineH
-            );
-        }
+        ctx.fillRect(x1-lineSize/2,y,lineSize,lineSize*2);
+
+        ctx.fillRect(x2-lineSize/2,y,lineSize,lineSize*2);
     }
 }
 
-function drawTrees(){
+let roadMove=0;
 
-    for(let i=0;i<12;i++){
 
-        let p=((i/12)+(roadMove*.015))%1;
-        let y=H*.36+p*(H*.64);
-        let rw=roadWidth(y);
+/* ---------------- TREES ---------------- */
 
-        let size=15+p*50;
+function tree(x,y,size){
 
-        let leftX=W/2-rw/2-size*1.5;
-        let rightX=W/2+rw/2+size*.5;
+    ctx.fillStyle="#59351d";
 
-        drawTree(leftX,y,size);
-        drawTree(rightX,y,size);
+    ctx.fillRect(
+        x-size*.08,
+        y-size*.7,
+        size*.16,
+        size*.7
+    );
+
+    ctx.fillStyle="#17652a";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y-size*.8,
+        size*.45,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x-size*.3,
+        y-size*.65,
+        size*.35,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x+size*.3,
+        y-size*.65,
+        size*.35,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+}
+
+
+function scenery(){
+
+    for(let i=0;i<15;i++){
+
+        let p=((i/15 + roadMove*.7)%1);
+
+        let y=H*.40+p*(H*.60);
+
+        let rw=roadWidth(p);
+
+        let size=12+p*55;
+
+        tree(
+            W/2-rw/2-size,
+            y,
+            size
+        );
+
+        tree(
+            W/2+rw/2+size,
+            y,
+            size
+        );
     }
 }
 
-function drawTree(x,y,s){
 
-    ctx.fillStyle="#5b351c";
-    ctx.fillRect(x-s*.12,y-s*.7,s*.24,s*.7);
+/* ---------------- CAR ---------------- */
 
-    ctx.beginPath();
-    ctx.arc(x,y-s*.9,s*.55,0,Math.PI*2);
-    ctx.fillStyle="#176b2c";
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(x-s*.35,y-s*.7,s*.4,0,Math.PI*2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(x+s*.35,y-s*.7,s*.4,0,Math.PI*2);
-    ctx.fill();
-}
-
-function drawCar(x,y,w,h,color){
+function car(x,y,w,h,color){
 
     // shadow
+    ctx.fillStyle="rgba(0,0,0,.45)";
+
     ctx.beginPath();
-    ctx.ellipse(x,y+h*.48,w*.65,h*.16,0,0,Math.PI*2);
-    ctx.fillStyle="rgba(0,0,0,.5)";
+
+    ctx.ellipse(
+        x,
+        y+h*.48,
+        w*.65,
+        h*.12,
+        0,
+        0,
+        Math.PI*2
+    );
+
     ctx.fill();
 
+
     // body
-    let g=ctx.createLinearGradient(x-w/2,y,x+w/2,y);
-    g.addColorStop(0,"#222");
+    let g=ctx.createLinearGradient(
+        x-w/2,
+        y,
+        x+w/2,
+        y
+    );
+
+    g.addColorStop(0,"#111");
     g.addColorStop(.25,color);
     g.addColorStop(.55,color);
     g.addColorStop(1,"#111");
@@ -289,141 +364,275 @@ function drawCar(x,y,w,h,color){
     ctx.fillStyle=g;
 
     ctx.beginPath();
+
     ctx.roundRect(
         x-w/2,
         y-h/2,
         w,
         h,
-        w*.18
+        w*.15
     );
+
     ctx.fill();
+
 
     // roof
-    ctx.fillStyle="#171717";
+
+    ctx.fillStyle="#222";
 
     ctx.beginPath();
-    ctx.moveTo(x-w*.32,y-h*.12);
-    ctx.lineTo(x-w*.20,y-h*.40);
-    ctx.lineTo(x+w*.20,y-h*.40);
-    ctx.lineTo(x+w*.32,y-h*.12);
+
+    ctx.moveTo(
+        x-w*.30,
+        y-h*.10
+    );
+
+    ctx.lineTo(
+        x-w*.18,
+        y-h*.38
+    );
+
+    ctx.lineTo(
+        x+w*.18,
+        y-h*.38
+    );
+
+    ctx.lineTo(
+        x+w*.30,
+        y-h*.10
+    );
+
     ctx.closePath();
+
     ctx.fill();
+
 
     // windows
-    ctx.fillStyle="#263d4a";
+
+    ctx.fillStyle="#263c4a";
 
     ctx.beginPath();
-    ctx.moveTo(x-w*.24,y-h*.16);
-    ctx.lineTo(x-w*.15,y-h*.34);
-    ctx.lineTo(x-w*.02,y-h*.34);
-    ctx.lineTo(x-w*.02,y-h*.16);
+
+    ctx.moveTo(
+        x-w*.22,
+        y-h*.14
+    );
+
+    ctx.lineTo(
+        x-w*.13,
+        y-h*.32
+    );
+
+    ctx.lineTo(
+        x-w*.02,
+        y-h*.32
+    );
+
+    ctx.lineTo(
+        x-w*.02,
+        y-h*.14
+    );
+
     ctx.closePath();
+
     ctx.fill();
 
+
     ctx.beginPath();
-    ctx.moveTo(x+w*.02,y-h*.16);
-    ctx.lineTo(x+w*.02,y-h*.34);
-    ctx.lineTo(x+w*.15,y-h*.34);
-    ctx.lineTo(x+w*.24,y-h*.16);
+
+    ctx.moveTo(
+        x+w*.02,
+        y-h*.14
+    );
+
+    ctx.lineTo(
+        x+w*.02,
+        y-h*.32
+    );
+
+    ctx.lineTo(
+        x+w*.13,
+        y-h*.32
+    );
+
+    ctx.lineTo(
+        x+w*.22,
+        y-h*.14
+    );
+
     ctx.closePath();
+
     ctx.fill();
+
 
     // headlights
+
     ctx.fillStyle="#fffbd0";
-    ctx.fillRect(x-w*.38,y-h*.34,w*.15,h*.08);
-    ctx.fillRect(x+w*.23,y-h*.34,w*.15,h*.08);
+
+    ctx.fillRect(
+        x-w*.38,
+        y-h*.34,
+        w*.14,
+        h*.07
+    );
+
+    ctx.fillRect(
+        x+w*.24,
+        y-h*.34,
+        w*.14,
+        h*.07
+    );
+
 
     // wheels
+
     ctx.fillStyle="#050505";
 
-    ctx.fillRect(x-w*.55,y-h*.20,w*.16,h*.35);
-    ctx.fillRect(x+w*.39,y-h*.20,w*.16,h*.35);
+    ctx.fillRect(
+        x-w*.55,
+        y-h*.18,
+        w*.16,
+        h*.34
+    );
 
-    // bumper
-    ctx.fillStyle="rgba(255,255,255,.2)";
-    ctx.fillRect(x-w*.35,y+h*.34,w*.7,h*.04);
+    ctx.fillRect(
+        x+w*.39,
+        y-h*.18,
+        w*.16,
+        h*.34
+    );
 }
 
-function spawnEnemy(){
 
-    let lane=Math.floor(Math.random()*3)-1;
+/* ---------------- ENEMY ---------------- */
+
+function spawn(){
 
     enemies.push({
-        lane:lane,
-        y:H*.36,
-        color:["#168cff","#ffcc00","#ffffff","#20c46b"][Math.floor(Math.random()*4)],
-        speed:2+Math.random()*3
+
+        lane:
+        [-.30,0,.30]
+        [Math.floor(Math.random()*3)],
+
+        p:0,
+
+        color:
+        ["#168cff","#ffd21c","#eeeeee","#25b765"]
+        [Math.floor(Math.random()*4)]
     });
 }
 
+
+/* ---------------- UPDATE ---------------- */
+
 function update(){
 
-    if(!gameRunning)return;
+    if(!running)return;
 
-    roadMove+=speed*.018;
+    roadMove+=gameSpeed;
 
-    if(Math.random()<.025){
-        spawnEnemy();
+    if(Math.random()<.018){
+        spawn();
     }
 
-    let playerY=H*.80;
-    let playerX=laneX(player.lane,playerY);
+    let playerP=.88;
+
+    let px=roadX(playerP,playerLane);
+
 
     for(let i=enemies.length-1;i>=0;i--){
 
         let e=enemies[i];
 
-        e.y+=e.speed+speed*.35;
+        e.p+=gameSpeed;
 
-        let ex=laneX(e.lane,e.y);
+        if(e.p>1.05){
 
-        let scale=(e.y-H*.36)/(H*.64);
+            enemies.splice(i,1);
 
-        let ew=28+scale*70;
-        let eh=50+scale*100;
+            score++;
 
-        drawCar(ex,e.y,ew,eh,e.color);
+            if(score%10===0){
+                gameSpeed+=.001;
+            }
 
-        if(
-            Math.abs(ex-playerX)<45 &&
-            Math.abs(e.y-playerY)<80
-        ){
-            gameOver();
+            continue;
         }
 
-        if(e.y>H+150){
-            enemies.splice(i,1);
-            score++;
-            speed=Math.min(15,7+score*.04);
+
+        // perspective
+        let y=H*.40+e.p*(H*.60);
+
+        let size=18+e.p*75;
+
+        let x=roadX(e.p,e.lane);
+
+        let h=size*1.6;
+
+        car(
+            x,
+            y,
+            size,
+            h,
+            e.color
+        );
+
+
+        // collision only near player
+
+        if(e.p>.78){
+
+            if(
+                Math.abs(x-px)<55 &&
+                Math.abs(y-H*.82)<100
+            ){
+                gameOver();
+            }
         }
     }
 
-    document.getElementById("score").innerText="Score: "+score;
-    document.getElementById("speed").innerText="Speed: "+speed.toFixed(1);
+
+    document.getElementById("score").innerText=
+        "Score: "+score;
 }
 
-function draw(){
 
-    drawSky();
-    drawRoad();
-    drawTrees();
+/* ---------------- CONTROLS ---------------- */
 
-    let y=H*.80;
-    let x=laneX(player.lane,y);
+function left(){
 
-    drawCar(x,y,90,150,"#e60000");
-
-    update();
-
-    requestAnimationFrame(draw);
+    if(playerLane>-.30){
+        playerLane-=.30;
+    }
 }
+
+function right(){
+
+    if(playerLane<.30){
+        playerLane+=.30;
+    }
+}
+
+document.addEventListener("keydown",function(e){
+
+    if(e.key==="ArrowLeft" || e.key.toLowerCase()==="a"){
+        left();
+    }
+
+    if(e.key==="ArrowRight" || e.key.toLowerCase()==="d"){
+        right();
+    }
+});
+
+
+/* ---------------- GAME OVER ---------------- */
 
 function gameOver(){
 
-    gameRunning=false;
+    running=false;
 
     document.getElementById("finalScore").innerText=
-        "Your Score: "+score;
+        "Score: "+score;
 
     document.getElementById("gameover").style.display="flex";
 }
@@ -432,37 +641,43 @@ function restart(){
 
     enemies=[];
     score=0;
-    speed=7;
-    player.lane=1;
-    gameRunning=true;
+    gameSpeed=.006;
+    roadMove=0;
+    playerLane=0;
+    running=true;
 
     document.getElementById("gameover").style.display="none";
 }
 
-function moveLeft(){
-    if(player.lane>0)player.lane--;
+
+/* ---------------- DRAW ---------------- */
+
+function draw(){
+
+    background();
+
+    road();
+
+    scenery();
+
+    // player car
+
+    let py=H*.82;
+
+    let px=roadX(.88,playerLane);
+
+    car(
+        px,
+        py,
+        95,
+        155,
+        "#e40000"
+    );
+
+    update();
+
+    requestAnimationFrame(draw);
 }
-
-function moveRight(){
-    if(player.lane<2)player.lane++;
-}
-
-addEventListener("keydown",e=>{
-
-    if(e.key==="ArrowLeft" || e.key.toLowerCase()==="a"){
-        moveLeft();
-    }
-
-    if(e.key==="ArrowRight" || e.key.toLowerCase()==="d"){
-        moveRight();
-    }
-});
-
-document.getElementById("left").addEventListener("touchstart",moveLeft);
-document.getElementById("right").addEventListener("touchstart",moveRight);
-
-document.getElementById("left").addEventListener("click",moveLeft);
-document.getElementById("right").addEventListener("click",moveRight);
 
 draw();
 
