@@ -506,22 +506,26 @@ function car(x,y,w,h,color){
 
 /* ---------------- ENEMY ---------------- */
 
-function spawn(){
+function spawn() {
+    if (enemies.length > 0) {
+        const last = enemies[enemies.length - 1];
+
+        if (last.p < 0.35) {
+            return;
+        }
+    }
+
+    const lanes = [-0.30, 0, 0.30];
+    const lane = lanes[Math.floor(Math.random() * lanes.length)];
 
     enemies.push({
-
-        lane:
-        [-.30,0,.30]
-        [Math.floor(Math.random()*3)],
-
-        p:0,
-
-        color:
-        ["#168cff","#ffd21c","#eeeeee","#25b765"]
-        [Math.floor(Math.random()*4)]
+        lane: lane,
+        p: 0,
+        color: ["#168cff", "#ffd21c", "#eeeeee", "#25b765"]
+            [Math.floor(Math.random() * 4)]
     });
-}
-
+}0
+    
 
 /* ---------------- UPDATE ---------------- */
 
