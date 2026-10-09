@@ -191,6 +191,8 @@ function spawnTraffic(){
 }
 
 let score=0,speed=24,running=true,spawnTimer=0;
+let boosting=false;
+let boostTime=0;
 let steer=0;
 function left(){steer=-1}
 function right(){steer=1}
@@ -209,7 +211,13 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{
  if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))steer=0;
 });
-
+document.getElementById('BOOST').addEventListener('click',()=>{
+ if(running && !boosting){
+  boosting=true;
+  boostTime=3;
+  score+=200;
+ }
+});
 function crash(){
  if(!running)return;
  running=false;
@@ -233,7 +241,15 @@ function animate(now){
 
  if(running){
   score+=dt*2;
-  speed=Math.min(34,24+score*.025);
+  if(boosting){
+ speed=50;
+ boostTime-=dt;
+ if(boostTime<=0){
+  boosting=false;
+ }
+}else{
+ speed=Math.min(34,24+score*.025);
+}
   player.position.x+=steer*dt*8;
   player.position.x=THREE.MathUtils.clamp(player.position.x,-4.3,4.3);
   player.rotation.z=THREE.MathUtils.lerp(player.rotation.z,-steer*.09,.12);
