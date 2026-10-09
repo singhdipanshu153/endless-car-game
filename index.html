@@ -211,12 +211,16 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{
  if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))steer=0;
 });
-document.getElementById('BOOST').addEventListener('click',()=>{
- if(running && !boosting){
-  boosting=true;
-  boostTime=3;
-  score+=200;
- }
+const boostButton = document.getElementById('BOOST');
+
+boostButton.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+
+    if (running && !boosting) {
+        boosting = true;
+        boostTime = 3;
+        score += 200;
+    }
 });
 function crash(){
  if(!running)return;
